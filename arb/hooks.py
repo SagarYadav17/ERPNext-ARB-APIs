@@ -4,6 +4,9 @@ app_publisher = "Kerol Systems"
 app_description = "APIs for ARB"
 app_email = "sagar.yadav@kerol.in"
 app_license = "mit"
+web_include_js = [
+    "/assets/arb/js/google_analytics.js"
+]
 
 # Apps
 # ------------------
