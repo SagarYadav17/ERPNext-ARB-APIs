@@ -246,3 +246,7 @@ class CheckUserExistsRequest(BaseModel):
         """Ensure at least one of phone or email is provided"""
         if not self.phone and not self.email:
             raise ValueError("Either phone or email must be provided")
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=10)
