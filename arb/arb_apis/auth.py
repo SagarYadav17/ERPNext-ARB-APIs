@@ -8,7 +8,6 @@ import frappe
 from frappe import _
 
 from arb.arb_apis.schemas import (
-	CheckUserExistsRequest,
 	CompleteSignupRequest,
 	ForgotPasswordRequest,
 	LoginRequest,
@@ -21,7 +20,9 @@ from arb.arb_apis.schemas import (
 	VerifyOTPRequest,
 	VerifyResetOTPRequest,
 )
+from arb.arb_apis.schemas.auth_schemas import LogoutRequest
 from arb.arb_apis.utils.authentication import (
+	blacklist_refresh_token,
 	generate_jwt_token,
 	generate_otp,
 	generate_refresh_token,
@@ -30,7 +31,6 @@ from arb.arb_apis.utils.authentication import (
 	verify_jwt_token,
 )
 from arb.arb_apis.utils.frappe_configs import (
-	get_jwt_expiry_minutes,
 	get_otp_expiry_minutes,
 	get_otp_resend_limit_per_hour,
 )
@@ -800,3 +800,46 @@ def send_login_otp(data: ResendOTPRequest):
 		identifier=data.phone,
 		extra_data={"user_email": user["name"]},
 	)
+
+
+@frappe.whitelist(allow_guest=True)
+@require_jwt_auth
+@validate_request(LogoutRequest)
+def logout(data: LogoutRequest):
+	"""
+	Logout user
+	- Blacklists refresh token
+	- Clears frappe user context
+	"""
+
+	try:
+		# Validate refresh token
+		payload = verify_jwt_token(data.refresh_token)
+		if not payload or payload.get("type") != "refresh":
+			frappe.throw(_("Invalid refresh token"))
+
+		# Blacklist refresh token
+		blacklist_refresh_token(data.refresh_token)
+
+		# Clear frappe session context
+		frappe.set_user("Guest")
+		frappe.session.user = "Guest"
+
+		frappe.logger().info("User logged out successfully")
+
+		return {
+			"status": "success",
+			"message": "Logged out successfully",
+		}
+
+	except frappe.ValidationError as e:
+		return {
+			"status": "error",
+			"message": str(e),
+		}
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "ARB Logout Error")
+		return {
+			"status": "error",
+			"message": "Logout failed",
+		}

@@ -130,3 +130,18 @@ def generate_otp(length: int = 6) -> str:
 
 def hash_otp(otp: str) -> str:
 	return hashlib.sha256(otp.encode()).hexdigest()
+
+
+def blacklist_refresh_token(refresh_token: str):
+	"""
+	Blacklist refresh token until it expires
+	"""
+	frappe.cache().set_value(
+		f"blacklist_refresh_{refresh_token}",
+		True,
+		expires_in_sec=7 * 24 * 60 * 60,  # match refresh expiry
+	)
+
+
+def is_refresh_token_blacklisted(refresh_token: str) -> bool:
+	return bool(frappe.cache().get_value(f"blacklist_refresh_{refresh_token}"))
