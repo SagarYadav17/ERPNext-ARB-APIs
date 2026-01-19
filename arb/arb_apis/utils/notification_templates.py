@@ -2,12 +2,12 @@ import frappe
 
 
 def send_welcome_notification(username, first_name, phone, email):
-	"""
-	Send welcome notification to new user
-	"""
-	subject = "Welcome to ARB - India's B2B Electronics Marketplace!"
+    """
+    Send welcome notification to new user
+    """
+    subject = "Welcome to ARB - India's B2B Electronics Marketplace!"
 
-	message = f"""
+    message = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; color: white; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="margin: 0; font-size: 28px;">Welcome to ARB!</h1>
@@ -55,18 +55,18 @@ def send_welcome_notification(username, first_name, phone, email):
     </div>
     """
 
-	# Send email
-	if email and email != f"{phone}@arb.local":
-		frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
+    # Send email
+    if email and email != f"{phone}@arb.local":
+        frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
 
 
 def send_password_reset_email(email, otp, user_name):
-	"""
-	Send password reset OTP via email
-	"""
-	subject = "ARB - Password Reset Request"
+    """
+    Send password reset OTP via email
+    """
+    subject = "ARB - Password Reset Request"
 
-	message = f"""
+    message = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; color: white; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="margin: 0; font-size: 28px;">Password Reset Request</h1>
@@ -109,16 +109,16 @@ def send_password_reset_email(email, otp, user_name):
     </div>
     """
 
-	frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
+    frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
 
 
 def send_password_reset_success_email(email, user_name):
-	"""
-	Send password reset success notification
-	"""
-	subject = "ARB - Password Reset Successful"
+    """
+    Send password reset success notification
+    """
+    subject = "ARB - Password Reset Successful"
 
-	message = f"""
+    message = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; color: white; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="margin: 0; font-size: 28px;">Password Reset Successful</h1>
@@ -160,4 +160,4 @@ def send_password_reset_success_email(email, user_name):
     </div>
     """
 
-	frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
+    frappe.sendmail(recipients=email, subject=subject, message=message, now=True, delayed=False)
