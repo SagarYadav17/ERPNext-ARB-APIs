@@ -174,7 +174,7 @@ def refresh_token(data: RefreshTokenRequest):
             frappe.throw(_("User not found"))
 
         user = frappe.get_doc("User", email)
-        if user.disabled:
+        if user.enabled != 1:
             frappe.throw(_("User account is disabled"))
 
         # Generate new access token
@@ -192,10 +192,10 @@ def refresh_token(data: RefreshTokenRequest):
             "message": str(e),
         }
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "ARB Refresh Token Error")
+        frappe.local.response.http_status_code = 401
         return {
             "status": "error",
-            "message": "Token refresh failed",
+            "message": "Failed to refresh token",
         }
 
 
@@ -297,7 +297,7 @@ def verify_signup_otp(data: VerifyOTPRequest):
     Step 2: Verify OTP for phone verification
     """
     try:
-        cache_key = f"otp_signup_{data.phone}"
+        cache_key = f"otp_signup_{data.identifier}"
         otp_data = frappe.cache().get_value(cache_key)
 
         if not otp_data:
@@ -318,7 +318,7 @@ def verify_signup_otp(data: VerifyOTPRequest):
             "status": "success",
             "message": "OTP verified successfully",
             "verified": True,
-            "phone": data.phone,
+            "phone": data.identifier,
             "full_name": otp_data["extra"].get("full_name"),
         }
 
@@ -749,7 +749,7 @@ def resend_reset_otp(data: ResendIdentifierRequest):
 @frappe.whitelist(allow_guest=True)
 @validate_request(VerifyOTPRequest)
 def verify_login_otp(data: VerifyOTPRequest):
-    key = f"otp_login_{data.phone}"
+    key = f"otp_login_{data.identifier}"
     cached = frappe.cache().get_value(key)
 
     if not cached:
