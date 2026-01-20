@@ -1,6 +1,6 @@
 import frappe
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def ping():
     return "pong"

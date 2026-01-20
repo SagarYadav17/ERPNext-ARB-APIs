@@ -43,6 +43,7 @@ def list_addresses():
         filters={"name": ["in", address_names], "disabled": 0},
         fields=[
             "name",
+            "phone",
             "address_title",
             "address_type",
             "address_line1",
@@ -133,3 +134,69 @@ def _get_or_create_customer(email):
     contact_doc.insert(ignore_permissions=True)
 
     return customer_doc.name
+
+
+@frappe.whitelist(allow_guest=True)
+@require_jwt_auth
+def update_address():
+    """Update an existing address for the authenticated user"""
+    user_email = frappe.session.user
+    if not user_email:
+        frappe.throw(_("Unauthorized"), frappe.Unauthorized)
+
+    # Get customer for the user
+    customer = _get_customer_from_email(user_email)
+    if not customer:
+        frappe.throw(_("Customer not found"), frappe.ValidationError)
+
+    # Get address name and data from request
+    address_name = frappe.local.form_dict.get("name")
+    address_data = frappe.local.form_dict.get("data")
+
+    if not address_name:
+        frappe.throw(_("Address name is required"), frappe.ValidationError)
+
+    if not address_data:
+        frappe.throw(_("Address data is required"), frappe.ValidationError)
+
+    # Verify address exists and belongs to the customer
+    address_link = frappe.db.get_value(
+        "Dynamic Link",
+        {
+            "link_doctype": "Customer",
+            "link_name": customer,
+            "parenttype": "Address",
+            "parent": address_name,
+        },
+        "parent",
+    )
+
+    if not address_link:
+        frappe.throw(_("Address not found or unauthorized"), frappe.PermissionError)
+
+    # Get and update the address
+    address_doc = frappe.get_doc("Address", address_name)
+
+    # Update allowed fields
+    allowed_fields = [
+        "address_title",
+        "address_type",
+        "address_line1",
+        "address_line2",
+        "city",
+        "state",
+        "country",
+        "pincode",
+        "phone",
+        "is_primary_address",
+        "is_shipping_address",
+        "disabled",
+    ]
+
+    for field in allowed_fields:
+        if field in address_data:
+            setattr(address_doc, field, address_data[field])
+
+    address_doc.save(ignore_permissions=True)
+
+    return {"success": True, "message": _("Address updated successfully"), "name": address_name}

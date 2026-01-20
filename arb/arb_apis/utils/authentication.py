@@ -95,7 +95,11 @@ def require_jwt_auth(f):
         token = frappe.request.headers.get("Token", "")
 
         if not token:
-            frappe.throw(_("Missing or invalid Authorization header"))
+            frappe.local.response.http_status_code = 401
+            return {
+                "message": "Missing or invalid Authorization header",
+                "status": 401,
+            }
 
         # Verify token
         payload = verify_jwt_token(token)
