@@ -44,7 +44,7 @@ def get_homepage_products():
             {
                 "item_code": website_item.item_code,
                 "name": website_item.web_item_name,
-                "image": website_item.website_image or "/placeholder-product.jpg",
+                "image": website_item.website_image,
                 "item_group": product_group,
                 "price": float(price),
                 "uom": website_item.stock_uom or "Nos",
@@ -52,6 +52,9 @@ def get_homepage_products():
             }
         )
 
-    categories = [{"name": category, "products": products} for category, products in category_map.items()]
+    categories = [
+        {"name": category, "products": products}
+        for category, products in category_map.items()
+    ]
 
     return {"categories": categories}
