@@ -1,0 +1,69 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-20 11:23:34.908433",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "link_document_type",
+  "link_name",
+  "link_title",
+  "role_profile",
+  "is_primary",
+  "is_disable"
+ ],
+ "fields": [
+  {
+   "fieldname": "link_document_type",
+   "fieldtype": "Select",
+   "label": "Link Document Type",
+   "options": "Customer\nSupplier\nEmployee"
+  },
+  {
+   "fieldname": "link_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Link Name",
+   "options": "link_document_type"
+  },
+  {
+   "fieldname": "link_title",
+   "fieldtype": "Data",
+   "label": "Link Title"
+  },
+  {
+   "fieldname": "role_profile",
+   "fieldtype": "Link",
+   "label": "Role Profile",
+   "link_filters": "[\n  [\"Website Role Profile\", \"list\", \"=\", \"eval:doc.link_document_type\"]\n]\n",
+   "options": "Website Role Profile"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_primary",
+   "fieldtype": "Check",
+   "label": "Is Primary"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_disable",
+   "fieldtype": "Check",
+   "label": "Is Disable"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-01-20 11:50:55.747845",
+ "modified_by": "Administrator",
+ "module": "ARB APIs",
+ "name": "User Website Link",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
