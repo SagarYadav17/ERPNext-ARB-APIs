@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-20 14:07:36.917938",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "store_link_shipping_method",
+  "shipment_courier",
+  "mode_of_shipment"
+ ],
+ "fields": [
+  {
+   "fieldname": "store_link_shipping_method",
+   "fieldtype": "Data",
+   "label": "Store Link Shipping Method",
+   "unique": 1
+  },
+  {
+   "fieldname": "shipment_courier",
+   "fieldtype": "Link",
+   "label": "Shipment Courier",
+   "options": "Shipment Courier"
+  },
+  {
+   "fieldname": "mode_of_shipment",
+   "fieldtype": "Link",
+   "label": "Mode Of Shipment",
+   "options": "Mode of Shipment"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-01-20 14:09:30.744115",
+ "modified_by": "Administrator",
+ "module": "ARB APIs",
+ "name": "Store Link Shipping Process",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
