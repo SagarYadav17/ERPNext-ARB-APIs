@@ -297,12 +297,19 @@ def verify_signup_otp(data: VerifyOTPRequest):
     Step 2: Verify OTP for phone verification
     """
     try:
-        cache_key = f"otp_signup_{data.identifier}"
+        # Get identifier from either phone or identifier field
+        identifier = getattr(data, 'identifier', None) or getattr(data, 'phone', None)
+        
+        if not identifier:
+            frappe.throw(_("Phone number is required"), title="Validation Error")
+        
+        cache_key = f"otp_signup_{identifier}"
         otp_data = frappe.cache().get_value(cache_key)
 
         if not otp_data:
             frappe.throw(_("OTP expired or invalid"))
 
+        # Rest of your existing code remains the same...
         if otp_data["attempts"] >= 3:
             frappe.throw(_("Too many attempts. Request a new OTP"))
 
@@ -318,7 +325,7 @@ def verify_signup_otp(data: VerifyOTPRequest):
             "status": "success",
             "message": "OTP verified successfully",
             "verified": True,
-            "phone": data.identifier,
+            "phone": identifier,  # Return the identifier
             "full_name": otp_data["extra"].get("full_name"),
         }
 
