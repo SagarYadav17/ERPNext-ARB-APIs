@@ -10,32 +10,45 @@ def get_homepage_products():
     category_map = defaultdict(list)
 
     for row in homepage.category_wise_product:
-        # Fetch item details
-        item = frappe.db.get_value(
-            "Item", row.website_item, ["name", "item_name", "image", "stock_uom", "description"], as_dict=True
+        # Fetch website item details
+        website_item = frappe.db.get_value(
+            "Website Item",
+            row.website_item,
+            [
+                "name",
+                "item_code",
+                "web_item_name",
+                "website_image",
+                "stock_uom",
+                "web_long_description",
+            ],
+            as_dict=True,
         )
 
-        if not item:
+        if not website_item:
             continue
 
-        # Fetch selling price
+        # Fetch selling price using the linked item code
         price = (
-            frappe.db.get_value("Item Price", {"item_code": item.name, "selling": 1}, "price_list_rate") or 0
+            frappe.db.get_value(
+                "Item Price",
+                {"item_code": website_item.item_code, "selling": 1},
+                "price_list_rate",
+            )
+            or 0
         )
 
-        # ✅ FINAL FIX:
-        # Product item_group must be homepage section name
+        # Product item_group is the homepage section name
         product_group = row.item_group
-
         category_map[row.item_group].append(
             {
-                "item_code": item.name,
-                "name": item.item_name,
-                "image": item.image or "/placeholder-product.jpg",
-                "item_group": product_group,  # ✅ ALWAYS homepage section
+                "item_code": website_item.item_code,
+                "name": website_item.web_item_name,
+                "image": website_item.website_image or "/placeholder-product.jpg",
+                "item_group": product_group,
                 "price": float(price),
-                "uom": item.stock_uom or "Nos",
-                "description": item.description or "",
+                "uom": website_item.stock_uom or "Nos",
+                "description": website_item.web_long_description or "",
             }
         )
 

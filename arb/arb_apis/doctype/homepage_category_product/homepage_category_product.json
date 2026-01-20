@@ -23,7 +23,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Website Item",
-   "options": "Item",
+   "options": "Website Item",
    "reqd": 1
   }
  ],
@@ -31,7 +31,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-30 13:23:22.195458",
+ "modified": "2026-01-20 10:12:17.307149",
  "modified_by": "Administrator",
  "module": "ARB APIs",
  "name": "Homepage category product",

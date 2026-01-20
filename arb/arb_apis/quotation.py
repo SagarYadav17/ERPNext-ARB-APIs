@@ -318,10 +318,16 @@ def edit_quotation():
 
 def get_item_image(item_code):
     """
-    Get item image URL
+    Get item image URL from Website Item
     """
-    image = frappe.db.get_value("Item", item_code, "image")
-    return image or ""
+    # First try to get the website item image
+    website_item_image = frappe.db.get_value("Website Item", {"item_code": item_code}, "website_image")
+
+    # Fallback to Item image if Website Item doesn't exist
+    if not website_item_image:
+        website_item_image = frappe.db.get_value("Item", item_code, "image")
+
+    return website_item_image or ""
 
 
 def get_react_status(erp_status):

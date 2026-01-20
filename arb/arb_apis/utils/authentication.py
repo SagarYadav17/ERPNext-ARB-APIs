@@ -32,9 +32,7 @@ def generate_jwt_token(user_email: str) -> str:
     payload = {
         "email": user_email,
         "iat": datetime.timestamp(datetime.now(timezone.utc)),
-        "exp": datetime.timestamp(
-            datetime.now(timezone.utc) + timedelta(minutes=get_jwt_expiry_minutes())
-        ),
+        "exp": datetime.timestamp(datetime.now(timezone.utc) + timedelta(minutes=get_jwt_expiry_minutes())),
     }
 
     token = jwt.encode(payload, secret, algorithm=get_jwt_algorithm())
@@ -56,9 +54,7 @@ def generate_refresh_token(user_email: str) -> str:
         "email": user_email,
         "type": "refresh",
         "iat": datetime.timestamp(datetime.now(timezone.utc)),
-        "exp": datetime.timestamp(
-            datetime.now(timezone.utc) + timedelta(days=get_jwt_refresh_expiry_days())
-        ),
+        "exp": datetime.timestamp(datetime.now(timezone.utc) + timedelta(days=get_jwt_refresh_expiry_days())),
     }
 
     token = jwt.encode(payload, secret, algorithm=get_jwt_algorithm())

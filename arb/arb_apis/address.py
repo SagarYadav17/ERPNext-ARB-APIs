@@ -112,12 +112,9 @@ def _get_or_create_customer(email):
             "doctype": "Customer",
             "customer_name": customer_name,
             "customer_type": "Individual",
-            "customer_group": frappe.db.get_single_value(
-                "Selling Settings", "customer_group"
-            )
+            "customer_group": frappe.db.get_single_value("Selling Settings", "customer_group")
             or "Individual",
-            "territory": frappe.db.get_single_value("Selling Settings", "territory")
-            or "All Territories",
+            "territory": frappe.db.get_single_value("Selling Settings", "territory") or "All Territories",
         }
     )
     customer_doc.insert(ignore_permissions=True)
@@ -131,9 +128,7 @@ def _get_or_create_customer(email):
             "status": "Passive",
         }
     )
-    contact_doc.append(
-        "links", {"link_doctype": "Customer", "link_name": customer_doc.name}
-    )
+    contact_doc.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
     contact_doc.append("email_ids", {"email_id": email, "is_primary": 1})
     contact_doc.insert(ignore_permissions=True)
 
