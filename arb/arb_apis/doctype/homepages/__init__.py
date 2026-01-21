@@ -103,6 +103,12 @@ def search_website_items(query="", item_group=""):
     # Add pricing information for each item
     products = []
     for item in website_items:
+        product_image = frappe.db.get_value(
+            "Item",
+            item.item_code,
+            "image"
+        )
+
         price = (
             frappe.db.get_value(
                 "Item Price",
@@ -117,6 +123,7 @@ def search_website_items(query="", item_group=""):
                 "item_code": item.item_code,
                 "name": item.web_item_name,
                 "image": item.website_image,
+                "product_image": product_image,  
                 "item_group": item.item_group or "",
                 "price": float(price),
                 "uom": item.stock_uom or "Nos",
