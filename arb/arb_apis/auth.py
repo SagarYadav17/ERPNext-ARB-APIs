@@ -779,27 +779,37 @@ def verify_login_otp(data: VerifyOTPRequest):
 
     return {"status": "success", "access_token": access, "refresh_token": refresh}
 
-
 @frappe.whitelist(allow_guest=True)
 @validate_request(ResendOTPRequest)
 def send_login_otp(data: ResendOTPRequest):
+    val = data.identifier
+    
+    # Determine if the input is an email or phone number
+    is_email = "@" in val
+    filters = {"enabled": 1}
+    
+    if is_email:
+        filters["email"] = val
+    else:
+        filters["mobile_no"] = val
+
     user = frappe.db.get_value(
-        "User",
-        {"mobile_no": data.phone, "enabled": 1},
-        ["name", "email", "mobile_no"],
-        as_dict=True,
+        "User", 
+        filters, 
+        ["name", "email", "mobile_no"], 
+        as_dict=True
     )
 
     if not user:
         frappe.local.response.http_status_code = 404
         return {
             "status": "error",
-            "message": "Account not found",
+            "message": "Account not found or disabled",
         }
 
     return send_otp(
         purpose="login",
-        identifier=data.phone,
+        identifier=val,
         extra_data={"user_email": user["name"]},
     )
 

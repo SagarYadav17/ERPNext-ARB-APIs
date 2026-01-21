@@ -40,33 +40,33 @@ class SendSignupOTPRequest(BaseModel):
             raise ValueError("Full name must be at least 2 characters")
         return v
 
-
 class VerifyOTPRequest(BaseModel):
-    """Verify OTP request validation"""
+    """Verify OTP request validation for Phone or Email"""
 
-    identifier: str = Field(..., min_length=10, max_length=10, description="10-digit phone number")
+    # 1. Remove max_length=10 to allow email strings
+    identifier: str = Field(..., description="10-digit phone number or email address")
     otp: str = Field(..., min_length=6, max_length=6, description="6-digit OTP")
 
     @field_validator("identifier")
     @classmethod
     def validate_identifier(cls, v: str) -> str:
-        """Validate phone number"""
-        if not v.isdigit():
-            raise ValueError("Phone number must contain only digits")
-        if len(v) != 10:
-            raise ValueError("Phone number must be exactly 10 digits")
-        return v
+        # Check if it's a 10-digit phone number
+        if v.isdigit() and len(v) == 10:
+            return v
+        
+        # Check if it's a valid email format
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if re.match(email_regex, v.strip()):
+            return v.strip()
+            
+        raise ValueError("Identifier must be a 10-digit phone number or a valid email address")
 
     @field_validator("otp")
     @classmethod
     def validate_otp(cls, v: str) -> str:
-        """Validate OTP"""
         if not v.isdigit():
             raise ValueError("OTP must contain only digits")
-        if len(v) != 6:
-            raise ValueError("OTP must be exactly 6 digits")
         return v
-
 
 class CompleteSignupRequest(BaseModel):
     """Complete signup request validation"""
@@ -103,20 +103,23 @@ class CompleteSignupRequest(BaseModel):
 
 
 class ResendOTPRequest(BaseModel):
-    """Resend OTP request validation"""
+    """Resend OTP request validation for both Phone and Email"""
 
-    phone: str = Field(..., min_length=10, max_length=10, description="10-digit phone number")
+    identifier: str = Field(..., description="10-digit phone number or email address")
 
-    @field_validator("phone")
+    @field_validator("identifier")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        """Validate phone number"""
-        if not v.isdigit():
-            raise ValueError("Phone number must contain only digits")
-        if len(v) != 10:
-            raise ValueError("Phone number must be exactly 10 digits")
-        return v
-
+    def validate_identifier(cls, v: str) -> str:
+        # Check if it's a 10-digit phone number
+        if v.isdigit() and len(v) == 10:
+            return v
+        
+        # Check if it's a valid email
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if re.match(email_regex, v):
+            return v
+            
+        raise ValueError("Must be a valid 10-digit phone number or email address")
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request validation"""
