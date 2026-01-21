@@ -52,9 +52,6 @@ def get_homepage_products():
             }
         )
 
-    categories = [
-        {"name": category, "products": products}
-        for category, products in category_map.items()
-    ]
+    categories = [{"name": category, "products": products} for category, products in category_map.items()]
 
     return {"categories": categories}

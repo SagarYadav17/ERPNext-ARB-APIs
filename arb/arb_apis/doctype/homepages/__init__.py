@@ -8,10 +8,7 @@ def get_homepage_data():
     homepage = frappe.get_single("Homepages")
 
     # Header Images
-    header = [
-        {"idx": row.idx, "image": row.image, "alt_text": row.alt_text}
-        for row in homepage.header
-    ]
+    header = [{"idx": row.idx, "image": row.image, "alt_text": row.alt_text} for row in homepage.header]
 
     category_map = defaultdict(list)
 
@@ -59,10 +56,7 @@ def get_homepage_data():
             }
         )
 
-    categories = [
-        {"name": category, "products": products}
-        for category, products in category_map.items()
-    ]
+    categories = [{"name": category, "products": products} for category, products in category_map.items()]
 
     return {"message": {"header": header, "categories": categories}}
 
@@ -164,8 +158,7 @@ def get_product_detail(item_code):
 
     # Product highlights from Website Specifications table
     highlights = [
-        {"label": spec.label, "description": spec.description}
-        for spec in website_item.website_specifications
+        {"label": spec.label, "description": spec.description} for spec in website_item.website_specifications
     ]
 
     data = {

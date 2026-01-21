@@ -298,11 +298,11 @@ def verify_signup_otp(data: VerifyOTPRequest):
     """
     try:
         # Get identifier from either phone or identifier field
-        identifier = getattr(data, 'identifier', None) or getattr(data, 'phone', None)
-        
+        identifier = getattr(data, "identifier", None) or getattr(data, "phone", None)
+
         if not identifier:
             frappe.throw(_("Phone number is required"), title="Validation Error")
-        
+
         cache_key = f"otp_signup_{identifier}"
         otp_data = frappe.cache().get_value(cache_key)
 
@@ -555,19 +555,12 @@ def forgot_password_request(data: ForgotPasswordRequest):
                 "phone": user_phone,
                 "name": user_name,
             },
-            expiry_minutes=15,
         )
 
     except frappe.ValidationError as e:
         return {
             "status": "error",
             "message": str(e),
-        }
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), "ARB Forgot Password Request Error")
-        return {
-            "status": "error",
-            "message": "Failed to process request. Please try again.",
         }
 
 
@@ -607,7 +600,7 @@ def verify_reset_otp(data: VerifyResetOTPRequest):
         user_email = user_list[0].name
 
         # Get reset data
-        reset_key = f"password_reset_{user_email}"
+        reset_key = f"otp_reset_{user_email}"
         reset_data = frappe.cache().get_value(reset_key)
 
         if not reset_data:
@@ -670,13 +663,15 @@ def reset_password(data: ResetPasswordRequest):
         # Search all reset keys to find matching token
         # Note: This is simplified. In production, you might want to store token-user mapping
         # For now, we'll check all password_reset_* keys
-        cache_keys = frappe.cache().get_keys("password_reset_*")
+        cache_keys = frappe.cache().get_keys("otp_reset_*")
 
         for key in cache_keys:
-            reset_data = frappe.cache().get_value(key)
+            actual_key = key.decode("utf-8").split("|")[-1]
+            reset_data = frappe.cache().get_value(actual_key)
+
             if reset_data and reset_data.get("reset_token") == reset_token:
                 if reset_data.get("verified"):
-                    user_email = reset_data.get("user_email")
+                    user_email = reset_data.get("extra", {}).get("user_email")
                     reset_key = key
                     break
 

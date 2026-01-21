@@ -133,7 +133,7 @@ def generate_otp(length: int = 6) -> str:
     if (length <= 0) or (length > 9):
         length = 6
 
-    return "".join([str(random.randint(0, 9)) for _ in range(length)])
+    return "".join([str(random.randint(0, 9)) for _ in range(length)])  # noqa: F811
 
 
 def hash_otp(otp: str) -> str:
