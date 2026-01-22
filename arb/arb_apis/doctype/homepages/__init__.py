@@ -3,6 +3,9 @@ from collections import defaultdict
 import frappe
 
 
+from collections import defaultdict
+import frappe
+
 @frappe.whitelist(allow_guest=True)
 def get_homepage_data():
     homepage = frappe.get_single("Homepages")
@@ -153,6 +156,14 @@ def get_product_detail(item_code):
     if not getattr(website_item, "published", 0):
         return {"success": False, "error": "Item not published"}
 
+    # --- IMAGE LOGIC CHANGES ---
+    # 1. Product image comes from the Item doctype
+    product_image = frappe.db.get_value("Item", website_item.item_code, "image")
+
+    # 2. Item Group image comes from the Website Item (using the website_image field)
+    item_group_image = website_item.website_image
+    # ---------------------------
+
     # Pricing
     price = (
         frappe.db.get_value(
@@ -171,7 +182,8 @@ def get_product_detail(item_code):
     data = {
         "item_code": website_item.item_code,
         "name": website_item.web_item_name,
-        "image": website_item.website_image,
+        "product_image": product_image,               
+        "image": item_group_image, 
         "item_group": website_item.item_group or "",
         "price": float(price),
         "uom": website_item.stock_uom or "Nos",
