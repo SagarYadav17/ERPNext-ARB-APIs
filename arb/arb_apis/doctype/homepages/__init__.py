@@ -1,9 +1,4 @@
 from collections import defaultdict
-
-import frappe
-
-
-from collections import defaultdict
 import frappe
 
 @frappe.whitelist(allow_guest=True)

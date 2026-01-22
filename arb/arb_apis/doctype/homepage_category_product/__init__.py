@@ -54,6 +54,7 @@ def get_homepage_products():
             "item_code": website_item.item_code,
             "name": website_item.web_item_name,
             "product_image": item_image,            # Item image
+            "item_group": category,
             "price": float(price),
             "uom": website_item.stock_uom or "Nos",
             "description": website_item.web_long_description or "",
