@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import frappe
 from frappe import _
+import requests
 
 from arb.arb_apis.schemas import (
     CompleteSignupRequest,
@@ -40,10 +41,110 @@ from arb.arb_apis.utils.notification_templates import (
 )
 from arb.arb_apis.utils.pydantic_validator import validate_request
 
+def get_msg91_settings():
+    """
+    Get MSG91 settings from the database
+    """
+    try:
+        settings = frappe.get_doc("MSG91 Settings")
+        if not settings.enabled:
+            frappe.throw(_("MSG91 is not enabled"))
+        return settings
+    except frappe.DoesNotExistError:
+        frappe.throw(_("MSG91 Settings not configured"))
 
+def send_sms_via_msg91(phone_number, message=None, otp=None):
+    """
+    Send SMS / OTP via MSG91
+    - OTP messages use DLT-approved template (OTP API)
+    - Normal SMS uses MSG91 Flow API
+    """
+
+    try:
+        settings = get_msg91_settings()
+
+        if not settings.auth_key or not settings.sender_id:
+            frappe.throw(_("MSG91 credentials not configured"))
+
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "authkey": settings.auth_key,
+        }
+
+        # ---------------------------
+        # OTP SMS (DLT-compliant)
+        # ---------------------------
+        if otp:
+            if not settings.templates or len(settings.templates) == 0:
+                frappe.throw(_("MSG91 OTP template not configured"))
+
+            # Use first template (or filter by name if needed)
+            template = settings.templates[0]
+
+            if not template.template_id:
+                frappe.throw(_("MSG91 OTP Template ID is missing"))
+
+            payload = {
+                "mobile": phone_number,
+                "authkey": settings.auth_key,
+                "otp": otp,
+                "sender": settings.sender_id,
+                "template_id": template.template_id,
+            }
+
+            response = requests.post(
+                settings.otp_route,
+                json=payload,
+                headers=headers,
+                timeout=10,
+            )
+
+        # ---------------------------
+        # Normal SMS (non-OTP)
+        # ---------------------------
+        else:
+            payload = {
+                "to": [phone_number],
+                "from": settings.sender_id,
+                "content": message,
+            }
+
+            response = requests.post(
+                f"{settings.sms_route}send/",
+                json=payload,
+                headers=headers,
+                timeout=10,
+            )
+
+        # ---------------------------
+        # Handle response
+        # ---------------------------
+        if response.status_code == 200:
+            frappe.logger().info(
+                f"MSG91 SMS sent successfully to {phone_number}: {response.text}"
+            )
+            return True
+        else:
+            frappe.logger().error(
+                f"MSG91 API error ({response.status_code}): {response.text}"
+            )
+            frappe.throw(_("Failed to send SMS via MSG91"))
+
+    except requests.exceptions.RequestException as e:
+        frappe.logger().error(f"MSG91 request error: {str(e)}")
+        frappe.throw(_("MSG91 service unavailable"))
+
+    except Exception as e:
+        frappe.logger().error(f"MSG91 unexpected error: {str(e)}")
+        frappe.throw(_("Failed to send SMS"))
+
+
+
+@frappe.whitelist(allow_guest=True)
 def send_otp(purpose, identifier, extra_data=None):
     """
-    purpose: signup | reset
+    purpose: signup | reset | login
     identifier: phone or email
     """
 
@@ -75,7 +176,13 @@ def send_otp(purpose, identifier, extra_data=None):
         expires_in_sec=expiry_minutes * 60,
     )
 
-    # TODO: Integrate with SMS/Email service to send the OTP
+    # Send OTP via MSG91 if identifier is a phone number
+    if identifier and len(identifier) == 10 and identifier.isdigit():
+        try:
+            send_sms_via_msg91(identifier, f"Your OTP is {otp}. Valid for {expiry_minutes} minutes.", otp=otp)
+        except Exception as e:
+            frappe.logger().error(f"Failed to send OTP via SMS: {str(e)}")
+            # Continue anyway - OTP is still cached and can be used
 
     response = {
         "status": "success",
@@ -782,22 +889,25 @@ def verify_login_otp(data: VerifyOTPRequest):
 @frappe.whitelist(allow_guest=True)
 @validate_request(ResendOTPRequest)
 def send_login_otp(data: ResendOTPRequest):
-    val = data.identifier
-    
-    # Determine if the input is an email or phone number
-    is_email = "@" in val
-    filters = {"enabled": 1}
-    
-    if is_email:
-        filters["email"] = val
-    else:
-        filters["mobile_no"] = val
+    identifier = data.identifier.strip()
+    print("Sending OTP to:", identifier)
 
+
+    # Determine lookup method
+    is_email = "@" in identifier
+
+    filters = {"enabled": 1}
+    if is_email:
+        filters["email"] = identifier
+    else:
+        filters["mobile_no"] = identifier
+
+    # Fetch user
     user = frappe.db.get_value(
-        "User", 
-        filters, 
-        ["name", "email", "mobile_no"], 
-        as_dict=True
+        "User",
+        filters,
+        ["name", "email", "mobile_no"],
+        as_dict=True,
     )
 
     if not user:
@@ -807,11 +917,34 @@ def send_login_otp(data: ResendOTPRequest):
             "message": "Account not found or disabled",
         }
 
-    return send_otp(
-        purpose="login",
-        identifier=val,
-        extra_data={"user_email": user["name"]},
-    )
+    # 🔒 Ensure user has a valid phone number
+    if not user.mobile_no or not user.mobile_no.isdigit() or len(user.mobile_no) != 10:
+        frappe.throw(_("No valid phone number linked to this account"))
+
+    # ✅ ALWAYS send OTP to phone number
+    try:
+        response = send_otp(
+            purpose="login",
+            identifier=user.mobile_no,
+            extra_data={
+                "user_email": user.name,
+            },
+        )
+        return response
+
+    except frappe.ValidationError as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "ARB Send Login OTP Error")
+        return {
+            "status": "error",
+            "message": "Failed to send OTP. Please try again.",
+        }
+
 
 
 @frappe.whitelist(allow_guest=True)
