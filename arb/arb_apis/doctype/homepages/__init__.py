@@ -1,6 +1,7 @@
 from collections import defaultdict
 import frappe
 
+
 @frappe.whitelist(allow_guest=True)
 def get_homepage_data():
     homepage = frappe.get_single("Homepages")
@@ -101,11 +102,7 @@ def search_website_items(query="", item_group=""):
     # Add pricing information for each item
     products = []
     for item in website_items:
-        product_image = frappe.db.get_value(
-            "Item",
-            item.item_code,
-            "image"
-        )
+        product_image = frappe.db.get_value("Item", item.item_code, "image")
 
         price = (
             frappe.db.get_value(
@@ -121,7 +118,7 @@ def search_website_items(query="", item_group=""):
                 "item_code": item.item_code,
                 "name": item.web_item_name,
                 "image": item.website_image,
-                "product_image": product_image,  
+                "product_image": product_image,
                 "item_group": item.item_group or "",
                 "price": float(price),
                 "uom": item.stock_uom or "Nos",
@@ -177,8 +174,8 @@ def get_product_detail(item_code):
     data = {
         "item_code": website_item.item_code,
         "name": website_item.web_item_name,
-        "product_image": product_image,               
-        "image": item_group_image, 
+        "product_image": product_image,
+        "image": item_group_image,
         "item_group": website_item.item_group or "",
         "price": float(price),
         "uom": website_item.stock_uom or "Nos",

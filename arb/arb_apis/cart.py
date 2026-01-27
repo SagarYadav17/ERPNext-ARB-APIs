@@ -58,9 +58,7 @@ def _get_or_create_cart(
 
     # Create a new Quick Order (cart) — shipping_process is required
     if not shipping_process:
-        frappe.throw(
-            _("Shipping Process is required to create a cart"), frappe.ValidationError
-        )
+        frappe.throw(_("Shipping Process is required to create a cart"), frappe.ValidationError)
 
     cart = frappe.get_doc(
         {
@@ -91,9 +89,7 @@ def get_shipping_processes():
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def add_to_cart(
-    item_code, qty=1, shipping_address=None, billing_address=None
-):
+def add_to_cart(item_code, qty=1, shipping_address=None, billing_address=None):
     """Add item to cart"""
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
@@ -107,9 +103,7 @@ def add_to_cart(
     cart = _get_existing_cart(customer)
     if not cart:
         # Fetch default shipping process from database
-        default_shipping_process = frappe.db.get_value(
-            "Store Link Shipping Process", {}, "name"
-        )
+        default_shipping_process = frappe.db.get_value("Store Link Shipping Process", {}, "name")
 
         if not default_shipping_process:
             frappe.throw(_("No Shipping Process available"), frappe.ValidationError)
@@ -217,9 +211,7 @@ def get_cart():
             {
                 "name": item.name,
                 "item_code": item.item_code,
-                "item_name": (
-                    website_item.web_item_name if website_item else item.item_name
-                ),
+                "item_name": (website_item.web_item_name if website_item else item.item_name),
                 "qty": float(item.qty or 0),
                 "uom": item.uom,
                 "price": float(price),
@@ -258,9 +250,7 @@ def set_cart_shipping(shipping_process):
         frappe.throw(_("Invalid Shipping Process"), frappe.ValidationError)
 
     # Get or create cart requiring shipping_process if new
-    existing_cart_name = frappe.db.get_value(
-        "Quick Order", {"customer": customer, "docstatus": 0}, "name"
-    )
+    existing_cart_name = frappe.db.get_value("Quick Order", {"customer": customer, "docstatus": 0}, "name")
     if existing_cart_name:
         cart = frappe.get_doc("Quick Order", existing_cart_name)
     else:
@@ -391,13 +381,9 @@ def update_cart_addresses(shipping_address=None, billing_address=None):
         )
 
     if shipping_address and not _validate_address(shipping_address):
-        frappe.throw(
-            _("Invalid Shipping Address for this customer"), frappe.PermissionError
-        )
+        frappe.throw(_("Invalid Shipping Address for this customer"), frappe.PermissionError)
     if billing_address and not _validate_address(billing_address):
-        frappe.throw(
-            _("Invalid Billing Address for this customer"), frappe.PermissionError
-        )
+        frappe.throw(_("Invalid Billing Address for this customer"), frappe.PermissionError)
 
     if shipping_address:
         cart.shipping_address = shipping_address

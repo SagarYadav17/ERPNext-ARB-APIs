@@ -40,6 +40,7 @@ class SendSignupOTPRequest(BaseModel):
             raise ValueError("Full name must be at least 2 characters")
         return v
 
+
 class VerifyOTPRequest(BaseModel):
     """Verify OTP request validation for Phone or Email"""
 
@@ -53,12 +54,12 @@ class VerifyOTPRequest(BaseModel):
         # Check if it's a 10-digit phone number
         if v.isdigit() and len(v) == 10:
             return v
-        
+
         # Check if it's a valid email format
-        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if re.match(email_regex, v.strip()):
             return v.strip()
-            
+
         raise ValueError("Identifier must be a 10-digit phone number or a valid email address")
 
     @field_validator("otp")
@@ -67,6 +68,7 @@ class VerifyOTPRequest(BaseModel):
         if not v.isdigit():
             raise ValueError("OTP must contain only digits")
         return v
+
 
 class CompleteSignupRequest(BaseModel):
     """Complete signup request validation"""
@@ -113,13 +115,14 @@ class ResendOTPRequest(BaseModel):
         # Check if it's a 10-digit phone number
         if v.isdigit() and len(v) == 10:
             return v
-        
+
         # Check if it's a valid email
-        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if re.match(email_regex, v):
             return v
-            
+
         raise ValueError("Must be a valid 10-digit phone number or email address")
+
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request validation"""

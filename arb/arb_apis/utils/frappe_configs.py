@@ -6,6 +6,7 @@ ARB_JWT_ALGORITHM = "arb_jwt_algorithm"
 ARB_JWT_EXPIRY_MINUTES = "arb_jwt_expiry_minutes"
 ARB_JWT_REFRESH_EXPIRY_DAYS = "arb_jwt_refresh_expiry_days"
 ARB_OTP_RESEND_LIMIT_PER_HOUR = "arb_otp_resend_limit_per_hour"
+ARB_CACHE_TIMEOUT_MINUTES = "arb_cache_timeout_minutes"
 
 
 def get_jwt_secret() -> str:
@@ -30,3 +31,7 @@ def get_jwt_refresh_expiry_days() -> int:
 
 def get_otp_resend_limit_per_hour() -> int:
     return frappe.conf.get(ARB_OTP_RESEND_LIMIT_PER_HOUR, 5)
+
+
+def get_cache_timeout_minutes() -> int:
+    return frappe.conf.get(ARB_CACHE_TIMEOUT_MINUTES, 15)

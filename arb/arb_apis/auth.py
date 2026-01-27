@@ -41,6 +41,7 @@ from arb.arb_apis.utils.notification_templates import (
 )
 from arb.arb_apis.utils.pydantic_validator import validate_request
 
+
 def get_msg91_settings():
     """
     Get MSG91 settings from the database
@@ -52,6 +53,7 @@ def get_msg91_settings():
         return settings
     except frappe.DoesNotExistError:
         frappe.throw(_("MSG91 Settings not configured"))
+
 
 def send_sms_via_msg91(phone_number, message=None, otp=None):
     """
@@ -121,14 +123,9 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
         # Handle response
         # ---------------------------
         if response.status_code == 200:
-            frappe.logger().info(
-                f"MSG91 SMS sent successfully to {phone_number}: {response.text}"
-            )
             return True
         else:
-            frappe.logger().error(
-                f"MSG91 API error ({response.status_code}): {response.text}"
-            )
+            frappe.logger().error(f"MSG91 API error ({response.status_code}): {response.text}")
             frappe.throw(_("Failed to send SMS via MSG91"))
 
     except requests.exceptions.RequestException as e:
@@ -138,7 +135,6 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
     except Exception as e:
         frappe.logger().error(f"MSG91 unexpected error: {str(e)}")
         frappe.throw(_("Failed to send SMS"))
-
 
 
 @frappe.whitelist(allow_guest=True)
@@ -179,7 +175,11 @@ def send_otp(purpose, identifier, extra_data=None):
     # Send OTP via MSG91 if identifier is a phone number
     if identifier and len(identifier) == 10 and identifier.isdigit():
         try:
-            send_sms_via_msg91(identifier, f"Your OTP is {otp}. Valid for {expiry_minutes} minutes.", otp=otp)
+            send_sms_via_msg91(
+                identifier,
+                f"Your OTP is {otp}. Valid for {expiry_minutes} minutes.",
+                otp=otp,
+            )
         except Exception as e:
             frappe.logger().error(f"Failed to send OTP via SMS: {str(e)}")
             # Continue anyway - OTP is still cached and can be used
@@ -886,12 +886,12 @@ def verify_login_otp(data: VerifyOTPRequest):
 
     return {"status": "success", "access_token": access, "refresh_token": refresh}
 
+
 @frappe.whitelist(allow_guest=True)
 @validate_request(ResendOTPRequest)
 def send_login_otp(data: ResendOTPRequest):
     identifier = data.identifier.strip()
     print("Sending OTP to:", identifier)
-
 
     # Determine lookup method
     is_email = "@" in identifier
@@ -917,11 +917,9 @@ def send_login_otp(data: ResendOTPRequest):
             "message": "Account not found or disabled",
         }
 
-    # 🔒 Ensure user has a valid phone number
     if not user.mobile_no or not user.mobile_no.isdigit() or len(user.mobile_no) != 10:
         frappe.throw(_("No valid phone number linked to this account"))
 
-    # ✅ ALWAYS send OTP to phone number
     try:
         response = send_otp(
             purpose="login",
@@ -944,7 +942,6 @@ def send_login_otp(data: ResendOTPRequest):
             "status": "error",
             "message": "Failed to send OTP. Please try again.",
         }
-
 
 
 @frappe.whitelist(allow_guest=True)

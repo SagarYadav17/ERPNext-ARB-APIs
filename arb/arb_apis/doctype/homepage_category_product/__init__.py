@@ -27,18 +27,17 @@ def get_homepage_products():
             continue
 
         # Fetch Item image from Item doctype
-        item_image = frappe.db.get_value(
-            "Item",
-            website_item.item_code,
-            "image"
-        )
+        item_image = frappe.db.get_value("Item", website_item.item_code, "image")
 
         # Fetch selling price
-        price = frappe.db.get_value(
-            "Item Price",
-            {"item_code": website_item.item_code, "selling": 1},
-            "price_list_rate",
-        ) or 0
+        price = (
+            frappe.db.get_value(
+                "Item Price",
+                {"item_code": website_item.item_code, "selling": 1},
+                "price_list_rate",
+            )
+            or 0
+        )
 
         category = row.item_group
 
@@ -47,17 +46,19 @@ def get_homepage_products():
             category_map[category] = {
                 "name": category,
                 "image": website_item.website_image,  # Category image
-                "products": []
+                "products": [],
             }
 
-        category_map[category]["products"].append({
-            "item_code": website_item.item_code,
-            "name": website_item.web_item_name,
-            "product_image": item_image,            # Item image
-            "item_group": category,
-            "price": float(price),
-            "uom": website_item.stock_uom or "Nos",
-            "description": website_item.web_long_description or "",
-        })
+        category_map[category]["products"].append(
+            {
+                "item_code": website_item.item_code,
+                "name": website_item.web_item_name,
+                "product_image": item_image,  # Item image
+                "item_group": category,
+                "price": float(price),
+                "uom": website_item.stock_uom or "Nos",
+                "description": website_item.web_long_description or "",
+            }
+        )
 
     return {"categories": list(category_map.values())}

@@ -29,14 +29,13 @@ def get_detail(item_code):
 
     # Product highlights from Website Specifications table
     highlights = [
-        {"label": spec.label, "description": spec.description}
-        for spec in website_item.website_specifications
+        {"label": spec.label, "description": spec.description} for spec in website_item.website_specifications
     ]
 
     # Fetch variants if the item has variants
     variants = []
     item = frappe.get_cached_doc("Item", website_item.item_code)
-    
+
     # Get main product image with fallback
     product_image = website_item.website_image or item.image or ""
 
@@ -74,7 +73,7 @@ def get_detail(item_code):
                     filters={"parent": variant.item_code},
                     fields=["attribute", "attribute_value"],
                 )
-                
+
                 # Get variant image with fallback
                 variant_image = variant_website_item.website_image
                 if not variant_image:
