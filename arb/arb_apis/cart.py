@@ -89,8 +89,20 @@ def get_shipping_processes():
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def add_to_cart(item_code, qty=1, shipping_address=None, billing_address=None):
-    """Add item to cart"""
+def update_cart_items(items, shipping_address=None, billing_address=None):
+    """Update cart items (add, update, or remove).
+    
+    Args:
+        items: List of dicts with 'item_code' and 'qty'. If qty=0, item is removed.
+        shipping_address: Optional shipping address
+        billing_address: Optional billing address
+    
+    Example:
+        items = [
+            {"item_code": "ITEM-001", "qty": 5},  # Add or update
+            {"item_code": "ITEM-002", "qty": 0}   # Remove
+        ]
+    """
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
@@ -116,44 +128,67 @@ def add_to_cart(item_code, qty=1, shipping_address=None, billing_address=None):
             billing_address=billing_address,
         )
 
-    # Fetch item details from Website Item
-    website_item = frappe.db.get_value(
-        "Website Item",
-        {"item_code": item_code},
-        ["item_code", "web_item_name", "stock_uom", "published"],
-        as_dict=True,
-    )
+    # Process each item update
+    if not isinstance(items, list):
+        items = [items]
+    
+    for item_update in items:
+        item_code = item_update.get("item_code")
+        qty = float(item_update.get("qty", 0))
+        
+        if not item_code:
+            frappe.throw(_("item_code is required"), frappe.ValidationError)
+        
+        # Find existing item in cart
+        existing_item = None
+        for item in cart.table_effn:
+            if item.item_code == item_code:
+                existing_item = item
+                break
+        
+        if qty == 0:
+            # Remove item if qty is 0
+            if existing_item:
+                cart.remove(existing_item)
+        else:
+            # Add or update item
+            if existing_item:
+                # Update quantity
+                existing_item.qty = qty
+            else:
+                # Fetch item details from Website Item
+                website_item = frappe.db.get_value(
+                    "Website Item",
+                    {"item_code": item_code},
+                    ["item_code", "web_item_name", "stock_uom", "published"],
+                    as_dict=True,
+                )
 
-    if not website_item or not website_item.published:
-        frappe.throw(_("Item not available"), frappe.ValidationError)
+                if not website_item or not website_item.published:
+                    frappe.throw(_(f"Item {item_code} not available"), frappe.ValidationError)
 
-    # Check if item already exists in cart
-    existing_item = None
-    for item in cart.table_effn:
-        if item.item_code == item_code:
-            existing_item = item
-            break
-
-    if existing_item:
-        # Update quantity
-        existing_item.qty = float(existing_item.qty or 0) + float(qty)
-    else:
-        # Add new item
-        cart.append(
-            "table_effn",
-            {
-                "item_code": website_item.item_code,
-                "item_name": website_item.web_item_name,
-                "qty": float(qty),
-                "uom": website_item.stock_uom,
-            },
-        )
-
+                # Add new item
+                cart.append(
+                    "table_effn",
+                    {
+                        "item_code": website_item.item_code,
+                        "item_name": website_item.web_item_name,
+                        "qty": qty,
+                        "uom": website_item.stock_uom,
+                    },
+                )
+    
+    # Update addresses if provided
+    if shipping_address:
+        cart.shipping_address = shipping_address
+    if billing_address:
+        cart.billing_address = billing_address
+    
     cart.save(ignore_permissions=True)
 
     return {
         "success": True,
-        "message": _("Item added to cart"),
+        "message": _("Cart updated"),
         "cart_id": cart.name,
     }
 
@@ -263,68 +298,6 @@ def set_cart_shipping(shipping_process):
         "message": _("Shipping details updated"),
         "cart_id": cart.name,
     }
-
-
-@frappe.whitelist(allow_guest=True)
-@require_jwt_auth
-def update_cart_item(item_name, qty):
-    """Update cart item quantity"""
-    user_email = frappe.session.user
-    if not user_email or user_email == "Guest":
-        frappe.throw(_("Unauthorized"), frappe.Unauthorized)
-
-    customer = _get_customer_from_email(user_email)
-    if not customer:
-        frappe.throw(_("Customer not found"), frappe.ValidationError)
-
-    cart = _get_existing_cart(customer)
-    if not cart:
-        frappe.throw(_("Cart not found"), frappe.ValidationError)
-
-    # Find and update the item
-    item_found = False
-    for item in cart.table_effn:
-        if item.name == item_name:
-            item.qty = float(qty)
-            item_found = True
-            break
-
-    if not item_found:
-        frappe.throw(_("Item not found in cart"), frappe.ValidationError)
-
-    cart.save(ignore_permissions=True)
-
-    return {"success": True, "message": _("Cart item updated")}
-
-
-@frappe.whitelist(allow_guest=True)
-@require_jwt_auth
-def remove_from_cart(item_name):
-    """Remove item from cart"""
-    user_email = frappe.session.user
-    if not user_email or user_email == "Guest":
-        frappe.throw(_("Unauthorized"), frappe.Unauthorized)
-
-    customer = _get_customer_from_email(user_email)
-    if not customer:
-        frappe.throw(_("Customer not found"), frappe.ValidationError)
-
-    cart = _get_existing_cart(customer)
-    if not cart:
-        frappe.throw(_("Cart not found"), frappe.ValidationError)
-
-    # Find and remove the item
-    item_to_remove = None
-    for item in cart.table_effn:
-        if item.name == item_name:
-            item_to_remove = item
-            break
-
-    if item_to_remove:
-        cart.remove(item_to_remove)
-        cart.save(ignore_permissions=True)
-
-    return {"success": True, "message": _("Item removed from cart")}
 
 
 @frappe.whitelist(allow_guest=True)
