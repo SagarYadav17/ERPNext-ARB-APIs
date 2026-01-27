@@ -5,14 +5,11 @@ import frappe
 @frappe.whitelist(allow_guest=True)
 def get_homepage_data():
     homepage = frappe.get_single("Homepages")
-
-    # Header Images
     header = [{"idx": row.idx, "image": row.image, "alt_text": row.alt_text} for row in homepage.header]
 
     category_map = defaultdict(list)
 
     for row in homepage.category_wise_product:
-        # Fetch website item details
         website_item = frappe.db.get_value(
             "Website Item",
             row.website_item,
@@ -30,7 +27,6 @@ def get_homepage_data():
         if not website_item:
             continue
 
-        # Fetch selling price using the linked item code
         price = (
             frappe.db.get_value(
                 "Item Price",
@@ -39,8 +35,6 @@ def get_homepage_data():
             )
             or 0
         )
-
-        # Product item_group is the homepage section name
         product_group = row.item_group
 
         category_map[row.item_group].append(
@@ -68,7 +62,6 @@ def search_website_items(query="", item_group=""):
 
     page_size = 20
 
-    # Build filters
     filters = {
         "or_filters": [
             ["web_item_name", "like", f"%{query}%"],
@@ -76,11 +69,9 @@ def search_website_items(query="", item_group=""):
         ]
     }
 
-    # Add item_group filter if provided
     if item_group:
         filters["item_group"] = item_group
 
-    # Search in Website Item doctype by name or item code
     website_items = frappe.get_all(
         "Website Item",
         or_filters=filters.get("or_filters"),
@@ -99,7 +90,6 @@ def search_website_items(query="", item_group=""):
         order_by="modified desc",
     )
 
-    # Add pricing information for each item
     products = []
     for item in website_items:
         product_image = frappe.db.get_value("Item", item.item_code, "image")
@@ -138,25 +128,18 @@ def get_product_detail(item_code):
     if not item_code:
         return {"success": False, "error": "Item code is required"}
 
-    # Fetch Website Item doc to include specifications table
     try:
         website_item = frappe.get_doc("Website Item", {"item_code": item_code})
     except frappe.DoesNotExistError:
         return {"success": False, "error": "Item not found"}
 
-    # Ensure item is published
     if not getattr(website_item, "published", 0):
         return {"success": False, "error": "Item not published"}
 
-    # --- IMAGE LOGIC CHANGES ---
-    # 1. Product image comes from the Item doctype
     product_image = frappe.db.get_value("Item", website_item.item_code, "image")
-
-    # 2. Item Group image comes from the Website Item (using the website_image field)
+    sales_moq = frappe.db.get_value("Item", website_item.item_code, "sales_moq")
     item_group_image = website_item.website_image
-    # ---------------------------
 
-    # Pricing
     price = (
         frappe.db.get_value(
             "Item Price",
@@ -166,7 +149,6 @@ def get_product_detail(item_code):
         or 0
     )
 
-    # Product highlights from Website Specifications table
     highlights = [
         {"label": spec.label, "description": spec.description} for spec in website_item.website_specifications
     ]
@@ -179,6 +161,7 @@ def get_product_detail(item_code):
         "item_group": website_item.item_group or "",
         "price": float(price),
         "uom": website_item.stock_uom or "Nos",
+        "sales_moq": sales_moq or 1,
         "short_description": website_item.short_description or "",
         "description": website_item.web_long_description or "",
         "highlights": highlights,

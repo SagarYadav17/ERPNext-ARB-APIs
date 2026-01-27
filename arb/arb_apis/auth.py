@@ -73,15 +73,10 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
             "content-type": "application/json",
             "authkey": settings.auth_key,
         }
-
-        # ---------------------------
-        # OTP SMS (DLT-compliant)
-        # ---------------------------
         if otp:
             if not settings.templates or len(settings.templates) == 0:
                 frappe.throw(_("MSG91 OTP template not configured"))
 
-            # Use first template (or filter by name if needed)
             template = settings.templates[0]
 
             if not template.template_id:
@@ -102,9 +97,6 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
                 timeout=10,
             )
 
-        # ---------------------------
-        # Normal SMS (non-OTP)
-        # ---------------------------
         else:
             payload = {
                 "to": [phone_number],
@@ -119,9 +111,6 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
                 timeout=10,
             )
 
-        # ---------------------------
-        # Handle response
-        # ---------------------------
         if response.status_code == 200:
             return True
         else:
@@ -172,7 +161,6 @@ def send_otp(purpose, identifier, extra_data=None):
         expires_in_sec=expiry_minutes * 60,
     )
 
-    # Send OTP via MSG91 if identifier is a phone number
     if identifier and len(identifier) == 10 and identifier.isdigit():
         try:
             send_sms_via_msg91(
@@ -182,7 +170,6 @@ def send_otp(purpose, identifier, extra_data=None):
             )
         except Exception as e:
             frappe.logger().error(f"Failed to send OTP via SMS: {str(e)}")
-            # Continue anyway - OTP is still cached and can be used
 
     response = {
         "status": "success",
@@ -198,18 +185,14 @@ def send_otp(purpose, identifier, extra_data=None):
 @frappe.whitelist(allow_guest=True)
 @validate_request(LoginRequest)
 def login(data: LoginRequest):
-    """
-    Login with email or phone number
-    Args:
-        data: LoginRequest with username and password
-    """
-
     try:
-        # Find user by email or phone number
+
         user_email = None
 
         if "@" in data.username:
-            user_list = frappe.db.get_all("User", filters={"email": data.username}, fields=["name"], limit=1)
+            user_list = frappe.db.get_all(
+                "User", filters={"email": data.username}, fields=["name"], limit=1
+            )
         else:
             user_list = frappe.db.get_all(
                 "User", filters={"mobile_no": data.username}, fields=["name"], limit=1
@@ -223,17 +206,57 @@ def login(data: LoginRequest):
 
         user = frappe.get_doc("User", user_email)
 
-        # Check if user is enabled
         if user.enabled != 1:
             frappe.throw(_("User account is disabled"))
 
-        # Validate password
         if not frappe.utils.password.check_password(user_email, data.password):
             frappe.throw(_("Invalid credentials, incorrect password"))
 
-        # Generate tokens
         access_token = generate_jwt_token(user_email)
         refresh_token = generate_refresh_token(user_email)
+
+        links = frappe.db.get_all(
+            "User Website Link",
+            filters={
+                "user": user_email
+            },
+            fields=[
+                "link_name",
+                "link_document_type",
+                "role_profile",
+                "is_primary",
+                "is_disable"
+            ],
+            order_by="is_primary desc, modified desc"
+        )
+
+        next_step = None
+        companies = []
+
+        if not links:
+            next_step = "onboard_customer"
+
+        else:
+            active_links = [l for l in links if not l.is_disable]
+
+            if not active_links:
+                next_step = "pending_approval"
+
+            else:
+                next_step = "select_company"
+                companies = [
+                    {
+                        "name": l.link_name,
+                        "type": l.link_document_type,
+                        "role": l.role_profile,
+                        "is_primary": l.is_primary
+                    }
+                    for l in active_links
+                ]
+
+        default_company = next(
+            (c for c in companies if c["is_primary"]), None
+        )
 
         return {
             "status": "success",
@@ -241,6 +264,9 @@ def login(data: LoginRequest):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "Bearer",
+            "next_step": next_step,
+            "default_company": default_company,
+            "companies": companies,
             "user": {
                 "email": user.email,
                 "phone": user.mobile_no,
@@ -262,6 +288,7 @@ def login(data: LoginRequest):
             "status": "error",
             "message": "Authentication failed",
         }
+
 
 
 @frappe.whitelist(allow_guest=True)
@@ -923,7 +950,7 @@ def send_login_otp(data: ResendOTPRequest):
     try:
         response = send_otp(
             purpose="login",
-            identifier=user.mobile_no,
+            identifier=identifier,
             extra_data={
                 "user_email": user.name,
             },
