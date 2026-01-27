@@ -6,21 +6,6 @@ import frappe
 from frappe import _
 
 from arb.arb_apis.utils.authentication import require_jwt_auth
-from pprint import pprint
-
-
-def _get_customer_from_email(email):
-    """Get customer linked to the email via Contact"""
-    contact = frappe.db.get_value("Contact", {"email_id": email}, "name")
-    if not contact:
-        return None
-
-    customer_link = frappe.db.get_value(
-        "Dynamic Link",
-        {"link_doctype": "Customer", "parent": contact, "parenttype": "Contact"},
-        "link_name",
-    )
-    return customer_link
 
 
 def _get_existing_cart(customer):
@@ -39,6 +24,7 @@ def _get_or_create_cart(
     shipping_process=None,
     shipping_address=None,
     billing_address=None,
+    items=None,
 ):
     """Get or create a cart (Quick Order) for the customer.
 
@@ -56,9 +42,23 @@ def _get_or_create_cart(
     if existing_cart:
         return frappe.get_doc("Quick Order", existing_cart)
 
-    # Create a new Quick Order (cart) — shipping_process is required
+    # Create a new Quick Order (cart) — shipping_process and at least one item are required
     if not shipping_process:
-        frappe.throw(_("Shipping Process is required to create a cart"), frappe.ValidationError)
+        frappe.throw(
+            _("Shipping Process is required to create a cart"), frappe.ValidationError
+        )
+
+    if not items:
+        frappe.throw(
+            _("At least one item with qty > 0 is required to create a cart"),
+            frappe.ValidationError,
+        )
+
+    available_warehouse = frappe.db.get_value("Available Warehouse", {}, "name")
+    if not available_warehouse:
+        frappe.throw(
+            _("No Available Warehouse found to create cart"), frappe.ValidationError
+        )
 
     cart = frappe.get_doc(
         {
@@ -66,8 +66,15 @@ def _get_or_create_cart(
             "customer": customer,
             "date": frappe.utils.now(),
             "shipping_process": shipping_process,
+            "warehouse": available_warehouse,
+            "custom_quick_order_to": customer,
         }
     )
+
+    # Seed mandatory child table rows
+    for item in items:
+        cart.append("table_effn", item)
+
     if shipping_address:
         cart.shipping_address = shipping_address
     if billing_address:
@@ -89,14 +96,15 @@ def get_shipping_processes():
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def update_cart_items(items, shipping_address=None, billing_address=None):
+def update_cart_items(customer, items, shipping_address=None, billing_address=None):
     """Update cart items (add, update, or remove).
-    
+
     Args:
+        customer: Customer name (mandatory)
         items: List of dicts with 'item_code' and 'qty'. If qty=0, item is removed.
         shipping_address: Optional shipping address
         billing_address: Optional billing address
-    
+
     Example:
         items = [
             {"item_code": "ITEM-001", "qty": 5},  # Add or update
@@ -107,84 +115,125 @@ def update_cart_items(items, shipping_address=None, billing_address=None):
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
 
-    customer = _get_customer_from_email(user_email)
     if not customer:
+        frappe.throw(_("customer is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("Customer", customer):
         frappe.throw(_("Customer not found"), frappe.ValidationError)
 
-    # Get or create cart
+    # Normalize to list
+    if not isinstance(items, list):
+        items = [items]
+
+    if not items:
+        frappe.throw(_("At least one item is required"), frappe.ValidationError)
+
+    # Pre-validate item payloads and fetch item master data once
+    normalized_items = []
+    item_details_cache = {}
+
+    for item_update in items:
+        item_code = (item_update or {}).get("item_code")
+        qty = float((item_update or {}).get("qty", 0))
+
+        if not item_code:
+            frappe.throw(_("item_code is required"), frappe.ValidationError)
+
+        if qty < 0:
+            frappe.throw(_("qty cannot be negative"), frappe.ValidationError)
+
+        # Cache website item details when needed (only for qty > 0)
+        if qty > 0 and item_code not in item_details_cache:
+            website_item = frappe.db.get_value(
+                "Website Item",
+                {"item_code": item_code},
+                ["item_code", "web_item_name", "stock_uom", "published"],
+                as_dict=True,
+            )
+
+            if not website_item or not website_item.published:
+                frappe.throw(
+                    _(f"Item {item_code} not available"), frappe.ValidationError
+                )
+            item_details_cache[item_code] = website_item
+
+        normalized_items.append({"item_code": item_code, "qty": qty})
+
     cart = _get_existing_cart(customer)
+
+    # If no cart exists, create one with the initial child rows to satisfy mandatory table
     if not cart:
-        # Fetch default shipping process from database
-        default_shipping_process = frappe.db.get_value("Store Link Shipping Process", {}, "name")
+        # Require at least one item with qty > 0 to create a new cart
+        creation_rows = []
+        for entry in normalized_items:
+            if entry["qty"] > 0:
+                details = item_details_cache.get(entry["item_code"])
+                creation_rows.append(
+                    {
+                        "item_code": details.item_code,
+                        "item_name": details.web_item_name,
+                        "qty": entry["qty"],
+                        "uom": details.stock_uom,
+                    }
+                )
+
+        if not creation_rows:
+            frappe.throw(
+                _("At least one item with qty > 0 is required to create a cart"),
+                frappe.ValidationError,
+            )
+
+        default_shipping_process = frappe.db.get_value(
+            "Store Link Shipping Process", {}, "name"
+        )
 
         if not default_shipping_process:
             frappe.throw(_("No Shipping Process available"), frappe.ValidationError)
 
-        # Create new cart with fetched shipping_process
         cart = _get_or_create_cart(
             customer,
             shipping_process=default_shipping_process,
             shipping_address=shipping_address,
             billing_address=billing_address,
+            items=creation_rows,
         )
+    else:
+        # Process updates on existing cart
+        for entry in normalized_items:
+            item_code = entry["item_code"]
+            qty = entry["qty"]
 
-    # Process each item update
-    if not isinstance(items, list):
-        items = [items]
-    
-    for item_update in items:
-        item_code = item_update.get("item_code")
-        qty = float(item_update.get("qty", 0))
-        
-        if not item_code:
-            frappe.throw(_("item_code is required"), frappe.ValidationError)
-        
-        # Find existing item in cart
-        existing_item = None
-        for item in cart.table_effn:
-            if item.item_code == item_code:
-                existing_item = item
-                break
-        
-        if qty == 0:
-            # Remove item if qty is 0
-            if existing_item:
-                cart.remove(existing_item)
-        else:
-            # Add or update item
-            if existing_item:
-                # Update quantity
-                existing_item.qty = qty
+            existing_item = None
+            for item in cart.table_effn:
+                if item.item_code == item_code:
+                    existing_item = item
+                    break
+
+            if qty == 0:
+                if existing_item:
+                    cart.remove(existing_item)
             else:
-                # Fetch item details from Website Item
-                website_item = frappe.db.get_value(
-                    "Website Item",
-                    {"item_code": item_code},
-                    ["item_code", "web_item_name", "stock_uom", "published"],
-                    as_dict=True,
-                )
+                if existing_item:
+                    existing_item.qty = qty
+                else:
+                    details = item_details_cache[item_code]
+                    cart.append(
+                        "table_effn",
+                        {
+                            "item_code": details.item_code,
+                            "item_name": details.web_item_name,
+                            "qty": qty,
+                            "uom": details.stock_uom,
+                        },
+                    )
 
-                if not website_item or not website_item.published:
-                    frappe.throw(_(f"Item {item_code} not available"), frappe.ValidationError)
+        # Update addresses if provided
+        if shipping_address:
+            cart.shipping_address = shipping_address
+        if billing_address:
+            cart.billing_address = billing_address
 
-                # Add new item
-                cart.append(
-                    "table_effn",
-                    {
-                        "item_code": website_item.item_code,
-                        "item_name": website_item.web_item_name,
-                        "qty": qty,
-                        "uom": website_item.stock_uom,
-                    },
-                )
-    
-    # Update addresses if provided
-    if shipping_address:
-        cart.shipping_address = shipping_address
-    if billing_address:
-        cart.billing_address = billing_address
-    
-    cart.save(ignore_permissions=True)
+        cart.save(ignore_permissions=True)
 
     return {
         "success": True,
@@ -195,13 +244,16 @@ def update_cart_items(items, shipping_address=None, billing_address=None):
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def get_cart():
-    """Get cart items"""
+def get_cart(customer):
+    """Get cart items for a customer"""
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
-    customer = _get_customer_from_email(user_email)
+
     if not customer:
+        frappe.throw(_("customer is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("Customer", customer):
         return {"success": True, "data": {"items": [], "total": 0}}
 
     cart = _get_existing_cart(customer)
@@ -246,7 +298,9 @@ def get_cart():
             {
                 "name": item.name,
                 "item_code": item.item_code,
-                "item_name": (website_item.web_item_name if website_item else item.item_name),
+                "item_name": (
+                    website_item.web_item_name if website_item else item.item_name
+                ),
                 "qty": float(item.qty or 0),
                 "uom": item.uom,
                 "price": float(price),
@@ -270,26 +324,28 @@ def get_cart():
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def set_cart_shipping(shipping_process):
-    """Set shipping process on the user's cart"""
+def set_cart_shipping(customer, shipping_process):
+    """Set shipping process on the customer's cart"""
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
 
-    customer = _get_customer_from_email(user_email)
     if not customer:
+        frappe.throw(_("customer is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("Customer", customer):
         frappe.throw(_("Customer not found"), frappe.ValidationError)
 
-    # Validate shipping process exists
     if not frappe.db.exists("Store Link Shipping Process", shipping_process):
         frappe.throw(_("Invalid Shipping Process"), frappe.ValidationError)
 
-    # Get or create cart requiring shipping_process if new
-    existing_cart_name = frappe.db.get_value("Quick Order", {"customer": customer, "docstatus": 0}, "name")
-    if existing_cart_name:
-        cart = frappe.get_doc("Quick Order", existing_cart_name)
-    else:
-        cart = _get_or_create_cart(customer, shipping_process=shipping_process)
+    existing_cart_name = frappe.db.get_value(
+        "Quick Order", {"customer": customer, "docstatus": 0}, "name"
+    )
+    if not existing_cart_name:
+        frappe.throw(_("Cart not found for this customer"), frappe.ValidationError)
+
+    cart = frappe.get_doc("Quick Order", existing_cart_name)
 
     cart.shipping_process = shipping_process
     cart.save(ignore_permissions=True)
@@ -302,21 +358,22 @@ def set_cart_shipping(shipping_process):
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def clear_cart():
+def clear_cart(customer):
     """Clear all items from cart"""
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
 
-    customer = _get_customer_from_email(user_email)
     if not customer:
+        frappe.throw(_("customer is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("Customer", customer):
         frappe.throw(_("Customer not found"), frappe.ValidationError)
 
     cart = _get_existing_cart(customer)
     if not cart:
         frappe.throw(_("Cart not found"), frappe.ValidationError)
 
-    # Clear all items
     cart.table_effn = []
     cart.save(ignore_permissions=True)
 
@@ -325,14 +382,16 @@ def clear_cart():
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth
-def update_cart_addresses(shipping_address=None, billing_address=None):
+def update_cart_addresses(customer, shipping_address=None, billing_address=None):
     """Update cart shipping and billing addresses"""
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
         frappe.throw(_("Unauthorized"), frappe.Unauthorized)
 
-    customer = _get_customer_from_email(user_email)
     if not customer:
+        frappe.throw(_("customer is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("Customer", customer):
         frappe.throw(_("Customer not found"), frappe.ValidationError)
 
     cart = _get_existing_cart(customer)
@@ -354,9 +413,13 @@ def update_cart_addresses(shipping_address=None, billing_address=None):
         )
 
     if shipping_address and not _validate_address(shipping_address):
-        frappe.throw(_("Invalid Shipping Address for this customer"), frappe.PermissionError)
+        frappe.throw(
+            _("Invalid Shipping Address for this customer"), frappe.PermissionError
+        )
     if billing_address and not _validate_address(billing_address):
-        frappe.throw(_("Invalid Billing Address for this customer"), frappe.PermissionError)
+        frappe.throw(
+            _("Invalid Billing Address for this customer"), frappe.PermissionError
+        )
 
     if shipping_address:
         cart.shipping_address = shipping_address

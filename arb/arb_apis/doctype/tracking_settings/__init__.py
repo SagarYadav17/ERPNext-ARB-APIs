@@ -75,6 +75,6 @@ def get_tracking_keys():
         "enable_tracking": doc.enable_tracking,
     }
 
-    frappe.cache().setex(cache_key, get_cache_timeout_minutes(), result)
+    frappe.cache().set_value(cache_key, result, get_cache_timeout_minutes() * 60)
 
     return result

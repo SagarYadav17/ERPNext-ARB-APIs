@@ -29,7 +29,8 @@ def get_detail(item_code):
 
     # Product highlights from Website Specifications table
     highlights = [
-        {"label": spec.label, "description": spec.description} for spec in website_item.website_specifications
+        {"label": spec.label, "description": spec.description}
+        for spec in website_item.website_specifications
     ]
 
     # Fetch variants if the item has variants
@@ -77,7 +78,9 @@ def get_detail(item_code):
                 # Get variant image with fallback
                 variant_image = variant_website_item.website_image
                 if not variant_image:
-                    variant_image = frappe.db.get_value("Item", variant.item_code, "image") or ""
+                    variant_image = (
+                        frappe.db.get_value("Item", variant.item_code, "image") or ""
+                    )
 
                 variants.append(
                     {
@@ -104,6 +107,7 @@ def get_detail(item_code):
         "highlights": highlights,
         "has_variants": item.has_variants,
         "variants": variants,
+        "moq": item.custom_sales_moq,
     }
 
     return {"success": True, "data": data}
