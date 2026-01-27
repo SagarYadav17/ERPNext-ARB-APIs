@@ -131,3 +131,39 @@ def search_website_items(query="", item_group=""):
         "success": True,
         "data": products,
     }
+
+@frappe.whitelist(allow_guest=True)
+def get_product_documents(item_code):
+    """
+    Fetch documents (image, heading, description)
+    from Website Item > Documents table
+    """
+
+    if not item_code:
+        return {"success": False, "error": "Item code is required"}
+
+    try:
+        website_item = frappe.get_doc("Website Item", {"item_code": item_code})
+    except frappe.DoesNotExistError:
+        return {"success": False, "error": "Item not found"}
+
+    # Ensure item is published
+    if not getattr(website_item, "published", 0):
+        return {"success": False, "error": "Item not published"}
+
+    documents = []
+
+    for row in website_item.documents:
+        documents.append({
+            "image": row.document,
+            "heading": row.heading or "",
+            "description": row.description or "",
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "item_code": website_item.item_code,
+            "documents": documents,
+        },
+    }
