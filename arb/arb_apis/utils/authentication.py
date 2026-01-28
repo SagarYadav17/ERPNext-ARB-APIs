@@ -32,7 +32,9 @@ def generate_jwt_token(user_email: str) -> str:
     payload = {
         "email": user_email,
         "iat": datetime.timestamp(datetime.now(timezone.utc)),
-        "exp": datetime.timestamp(datetime.now(timezone.utc) + timedelta(minutes=get_jwt_expiry_minutes())),
+        "exp": datetime.timestamp(
+            datetime.now(timezone.utc) + timedelta(minutes=get_jwt_expiry_minutes())
+        ),
     }
 
     token = jwt.encode(payload, secret, algorithm=get_jwt_algorithm())
@@ -54,7 +56,9 @@ def generate_refresh_token(user_email: str) -> str:
         "email": user_email,
         "type": "refresh",
         "iat": datetime.timestamp(datetime.now(timezone.utc)),
-        "exp": datetime.timestamp(datetime.now(timezone.utc) + timedelta(days=get_jwt_refresh_expiry_days())),
+        "exp": datetime.timestamp(
+            datetime.now(timezone.utc) + timedelta(days=get_jwt_refresh_expiry_days())
+        ),
     }
 
     token = jwt.encode(payload, secret, algorithm=get_jwt_algorithm())
@@ -110,8 +114,21 @@ def require_jwt_auth(f):
                 "status": 401,
             }
 
+        try:
+            user = frappe.get_doc("User", payload.get("email"))
+        except frappe.DoesNotExistError:
+            user = None
+
+        if not user or user.enabled != 1:
+            frappe.local.response.http_status_code = 401
+            return {
+                "message": "User not found or disabled",
+                "status": 401,
+            }
+
         # Set current user context
-        frappe.session.user = payload.get("email")
+        frappe.session.user = user.name
+        frappe.set_user(user.name)
 
         return f(*args, **kwargs)
 

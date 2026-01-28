@@ -20,6 +20,7 @@ from arb.arb_apis.schemas import (
     ValidateTokenRequest,
     VerifyOTPRequest,
     VerifyResetOTPRequest,
+    GSTDetailsRequest,
 )
 from arb.arb_apis.schemas.auth_schemas import LogoutRequest
 from arb.arb_apis.utils.authentication import (
@@ -114,7 +115,9 @@ def send_sms_via_msg91(phone_number, message=None, otp=None):
         if response.status_code == 200:
             return True
         else:
-            frappe.logger().error(f"MSG91 API error ({response.status_code}): {response.text}")
+            frappe.logger().error(
+                f"MSG91 API error ({response.status_code}): {response.text}"
+            )
             frappe.throw(_("Failed to send SMS via MSG91"))
 
     except requests.exceptions.RequestException as e:
@@ -146,7 +149,9 @@ def send_otp(purpose, identifier, extra_data=None):
     if existing:
         resend_attempts += 1
         if resend_attempts > get_otp_resend_limit_per_hour():
-            frappe.throw(_("OTP resend limit exceeded. Please try again after some time."))
+            frappe.throw(
+                _("OTP resend limit exceeded. Please try again after some time.")
+            )
 
     frappe.cache().set_value(
         cache_key,
@@ -217,17 +222,15 @@ def login(data: LoginRequest):
 
         links = frappe.db.get_all(
             "User Website Link",
-            filters={
-                "user": user_email
-            },
+            filters={"user": user_email},
             fields=[
                 "link_name",
                 "link_document_type",
                 "role_profile",
                 "is_primary",
-                "is_disable"
+                "is_disable",
             ],
-            order_by="is_primary desc, modified desc"
+            order_by="is_primary desc, modified desc",
         )
 
         next_step = None
@@ -249,14 +252,12 @@ def login(data: LoginRequest):
                         "name": l.link_name,
                         "type": l.link_document_type,
                         "role": l.role_profile,
-                        "is_primary": l.is_primary
+                        "is_primary": l.is_primary,
                     }
                     for l in active_links
                 ]
 
-        default_company = next(
-            (c for c in companies if c["is_primary"]), None
-        )
+        default_company = next((c for c in companies if c["is_primary"]), None)
 
         return {
             "status": "success",
@@ -288,7 +289,6 @@ def login(data: LoginRequest):
             "status": "error",
             "message": "Authentication failed",
         }
-
 
 
 @frappe.whitelist(allow_guest=True)
@@ -395,6 +395,65 @@ def get_current_user():
         }
 
     user = frappe.get_doc("User", user_email)
+    portal_users = frappe.db.get_all(
+        "Portal User",
+        filters={"user": user_email, "parenttype": "Customer"},
+        fields=["parent", "custom_is_primary_admin"],
+    )
+
+    # Fetch companies with their addresses
+    companies_list = []
+    for portal_user in portal_users:
+        customer_name = portal_user.parent
+
+        # Get customer details
+        customer = frappe.db.get_value(
+            "Customer",
+            customer_name,
+            ["name", "customer_name", "gstin", "mobile_no"],
+            as_dict=True,
+        )
+
+        if customer:
+            # Get addresses for this customer
+            address_links = frappe.db.get_all(
+                "Dynamic Link",
+                filters={"link_doctype": "Customer", "link_name": customer_name},
+                fields=["parent"],
+            )
+
+            addresses = []
+            for addr_link in address_links:
+                address = frappe.db.get_value(
+                    "Address",
+                    addr_link.parent,
+                    [
+                        "name",
+                        "address_title",
+                        "address_line1",
+                        "address_line2",
+                        "city",
+                        "state",
+                        "pincode",
+                        "country",
+                        "is_primary_address",
+                        "is_shipping_address",
+                    ],
+                    as_dict=True,
+                )
+                if address:
+                    addresses.append(address)
+
+            companies_list.append(
+                {
+                    "customer_id": customer.name,
+                    "customer_name": customer.customer_name,
+                    "gstin": customer.gstin or "",
+                    "mobile_no": customer.mobile_no or "",
+                    "is_primary_admin": portal_user.custom_is_primary_admin or 0,
+                    "addresses": addresses,
+                }
+            )
 
     return {
         "status": "success",
@@ -405,6 +464,7 @@ def get_current_user():
             "last_name": user.last_name,
             "full_name": user.full_name,
             "user_image": user.user_image,
+            "companies": companies_list,
         },
     }
 
@@ -414,7 +474,11 @@ def get_current_user():
 @validate_request(SendSignupOTPRequest)
 def send_signup_otp(data: SendSignupOTPRequest):
     if frappe.db.exists("User", {"mobile_no": data.phone}):
-        frappe.throw(_("Phone number already registered"))
+        frappe.local.response.http_status_code = 400
+        return {
+            "status": "error",
+            "message": _("Phone number already registered. Please login instead."),
+        }
 
     return send_otp(
         purpose="signup",
@@ -449,11 +513,15 @@ def verify_signup_otp(data: VerifyOTPRequest):
 
         if hash_otp(data.otp) != otp_data["otp_hash"]:
             otp_data["attempts"] += 1
-            frappe.cache().set_value(cache_key, otp_data, expires_in_sec=get_otp_expiry_minutes() * 60)
+            frappe.cache().set_value(
+                cache_key, otp_data, expires_in_sec=get_otp_expiry_minutes() * 60
+            )
             frappe.throw(_("Invalid OTP"))
 
         otp_data["verified"] = True
-        frappe.cache().set_value(cache_key, otp_data, expires_in_sec=get_otp_expiry_minutes() * 60)
+        frappe.cache().set_value(
+            cache_key, otp_data, expires_in_sec=get_otp_expiry_minutes() * 60
+        )
 
         return {
             "status": "success",
@@ -502,7 +570,11 @@ def complete_signup(data: CompleteSignupRequest):
 
             # Check if email exists
             if frappe.db.exists("User", {"email": email}):
-                frappe.throw(_("Email already registered. Please use a different email or login."))
+                frappe.throw(
+                    _(
+                        "Email already registered. Please use a different email or login."
+                    )
+                )
 
         # Generate username (use phone as username)
         username = f"user_{data.phone}"
@@ -538,28 +610,6 @@ def complete_signup(data: CompleteSignupRequest):
 
         # Insert the user
         user.insert(ignore_permissions=True)
-
-        # Create Customer record linked to this user
-        try:
-            customer = frappe.get_doc(
-                {
-                    "doctype": "Customer",
-                    "customer_name": full_name,
-                    "customer_type": "Individual",
-                    "customer_group": "Individual",
-                    "territory": "India",
-                    "mobile_no": data.phone,
-                    "email_id": email if email != f"{data.phone}@arb.local" else "",
-                    "lead_name": full_name,
-                    "custom_user_id": user.name,  # Link user to customer
-                }
-            )
-            customer.insert(ignore_permissions=True)
-        except Exception as e:
-            frappe.log_error(
-                f"Failed to create customer for user {user.name}: {e!s}",
-                "ARB Signup",
-            )
 
         # Commit the transaction
         frappe.db.commit()
@@ -607,6 +657,73 @@ def complete_signup(data: CompleteSignupRequest):
             "status": "error",
             "message": "Failed to create account. Please try again.",
         }
+
+
+@frappe.whitelist(allow_guest=True)
+@validate_request(GSTDetailsRequest)
+@require_jwt_auth
+def get_company_details(data):
+    """
+    Fetch company details using GST number
+    """
+    user_email = frappe.session.user
+    user = frappe.get_doc("User", user_email)
+
+    existing_customer = frappe.db.get_value(
+        "Customer", {"gstin": data.gst_number}, ["name"], as_dict=True
+    )
+
+    if existing_customer:
+        return {
+            "status": "error",
+            "message": "GST number already registered with another customer",
+        }
+
+    # Create Customer Onboard with Administrator privileges
+    frappe.set_user("Administrator")
+    frappe.flags.ignore_permissions = True
+
+    try:
+        customer_onboarding = frappe.get_doc(
+            {
+                "doctype": "Customer Onboard",
+                "gstin__uin": data.gst_number,
+                "postal_code": data.postal_code,
+                "account_create_mobile_no": user.mobile_no or "",
+                "customer_name": user.full_name or "",
+                "citytown": data.city,
+                "state": data.state,
+            }
+        )
+        customer_onboarding.insert(ignore_permissions=True)
+
+        portal_user = frappe.get_doc(
+            {
+                "doctype": "Portal User",
+                "user": user_email,
+                "parent": customer_onboarding.customer_name,
+                "parenttype": "Customer",
+                "custom_is_primary_admin": 1,
+                "parentfield": "portal_users",
+            }
+        )
+        portal_user.insert(ignore_permissions=True)
+
+        frappe.db.commit()
+
+        return {"status": "success", "message": "GST details fetched successfully"}
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "Customer Onboard Creation Error")
+        return {
+            "status": "error",
+            "message": f"Failed to create customer onboard: {str(e)}",
+        }
+    finally:
+        # Restore original user
+        frappe.set_user(user_email)
+        frappe.flags.ignore_permissions = False
 
 
 # Resend OTP
@@ -896,7 +1013,9 @@ def verify_login_otp(data: VerifyOTPRequest):
 
     if hash_otp(data.otp) != cached["otp_hash"]:
         cached["attempts"] = cached.get("attempts", 0) + 1
-        frappe.cache().set_value(key, cached, expires_in_sec=get_otp_expiry_minutes() * 60)
+        frappe.cache().set_value(
+            key, cached, expires_in_sec=get_otp_expiry_minutes() * 60
+        )
         frappe.throw(_("Invalid OTP"))
 
     user_email = cached.get("extra", {}).get("user_email")

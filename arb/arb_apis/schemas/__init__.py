@@ -15,6 +15,7 @@ from arb.arb_apis.schemas.auth_schemas import (
     ValidateTokenRequest,
     VerifyOTPRequest,
     VerifyResetOTPRequest,
+    GSTDetailsRequest,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "ValidateTokenRequest",
     "VerifyOTPRequest",
     "VerifyResetOTPRequest",
+    "GSTDetailsRequest",
 ]

@@ -18,8 +18,12 @@ class LoginRequest(BaseModel):
 class SendSignupOTPRequest(BaseModel):
     """Send signup OTP request validation"""
 
-    phone: str = Field(..., min_length=10, max_length=10, description="10-digit phone number")
-    full_name: str = Field(..., min_length=2, max_length=100, description="User's full name")
+    phone: str = Field(
+        ..., min_length=10, max_length=10, description="10-digit phone number"
+    )
+    full_name: str = Field(
+        ..., min_length=2, max_length=100, description="User's full name"
+    )
 
     @field_validator("phone")
     @classmethod
@@ -60,7 +64,9 @@ class VerifyOTPRequest(BaseModel):
         if re.match(email_regex, v.strip()):
             return v.strip()
 
-        raise ValueError("Identifier must be a 10-digit phone number or a valid email address")
+        raise ValueError(
+            "Identifier must be a 10-digit phone number or a valid email address"
+        )
 
     @field_validator("otp")
     @classmethod
@@ -73,8 +79,12 @@ class VerifyOTPRequest(BaseModel):
 class CompleteSignupRequest(BaseModel):
     """Complete signup request validation"""
 
-    phone: str = Field(..., min_length=10, max_length=10, description="10-digit phone number")
-    password: str = Field(..., min_length=8, max_length=100, description="User password")
+    phone: str = Field(
+        ..., min_length=10, max_length=10, description="10-digit phone number"
+    )
+    password: str = Field(
+        ..., min_length=8, max_length=100, description="User password"
+    )
     email: EmailStr | None = Field(None, description="User email (optional)")
 
     @field_validator("phone")
@@ -124,10 +134,58 @@ class ResendOTPRequest(BaseModel):
         raise ValueError("Must be a valid 10-digit phone number or email address")
 
 
+class GSTDetailsRequest(BaseModel):
+    """GST details request validation"""
+
+    gst_number: str = Field(
+        ..., min_length=15, max_length=15, description="15-character GST number"
+    )
+    postal_code: Optional[str] = Field(
+        ..., min_length=6, max_length=10, description="Postal code"
+    )
+    state: str = Field(..., min_length=2, max_length=100, description="State name")
+    city: str = Field(..., min_length=2, max_length=100, description="City name")
+
+    @field_validator("gst_number")
+    @classmethod
+    def validate_gst_number(cls, v: str) -> str:
+        """Validate GST number format"""
+        gst_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
+        if not re.match(gst_regex, v):
+            raise ValueError("Invalid GST number format")
+        return v
+
+    @field_validator("postal_code")
+    @classmethod
+    def validate_postal_code(cls, v: Optional[str]) -> Optional[str]:
+        """Validate postal code is not empty"""
+        if not v or not v.strip():
+            raise ValueError("Postal code is required")
+        return v.strip()
+
+    @field_validator("state")
+    @classmethod
+    def validate_state(cls, v: str) -> str:
+        """Validate state is not empty"""
+        if not v or not v.strip():
+            raise ValueError("State is required")
+        return v.strip()
+
+    @field_validator("city")
+    @classmethod
+    def validate_city(cls, v: str) -> str:
+        """Validate city is not empty"""
+        if not v or not v.strip():
+            raise ValueError("City is required")
+        return v.strip()
+
+
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request validation"""
 
-    phone: str | None = Field(None, min_length=10, max_length=10, description="10-digit phone number")
+    phone: str | None = Field(
+        None, min_length=10, max_length=10, description="10-digit phone number"
+    )
     email: EmailStr | None = Field(None, description="User email")
 
     @field_validator("phone")
@@ -168,8 +226,12 @@ class ResetPasswordRequest(BaseModel):
     """Reset password request validation"""
 
     reset_token: str = Field(..., min_length=10, description="Password reset token")
-    new_password: str = Field(..., min_length=8, max_length=100, description="New password")
-    confirm_password: str = Field(..., min_length=8, max_length=100, description="Confirm new password")
+    new_password: str = Field(
+        ..., min_length=8, max_length=100, description="New password"
+    )
+    confirm_password: str = Field(
+        ..., min_length=8, max_length=100, description="Confirm new password"
+    )
 
     @field_validator("new_password")
     @classmethod
@@ -214,7 +276,9 @@ class ResendIdentifierRequest(BaseModel):
 class CheckUserExistsRequest(BaseModel):
     """Check user exists request validation"""
 
-    phone: str | None = Field(None, min_length=10, max_length=10, description="10-digit phone number")
+    phone: str | None = Field(
+        None, min_length=10, max_length=10, description="10-digit phone number"
+    )
     email: EmailStr | None = Field(None, description="User email")
 
     @field_validator("phone")

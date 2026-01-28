@@ -3,7 +3,7 @@ from frappe import _
 from arb.arb_apis.utils.authentication import (
     require_jwt_auth
 )
-from utils.gst import fetch_gst_details
+from arb.arb_apis.utils.gst import fetch_gst_details
 
 @frappe.whitelist(allow_guest=True)
 @require_jwt_auth

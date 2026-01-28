@@ -44,7 +44,7 @@ def get_detail(route=None, item_code=None):
     ]
 
     # Main product image fallback
-    product_image=(frappe.db.get_value("Item", website_item.item_code, "image") or "")
+    product_image = frappe.db.get_value("Item", website_item.item_code, "image") or ""
 
     variants = []
 
@@ -114,6 +114,17 @@ def get_detail(route=None, item_code=None):
                 }
             )
 
+    # Documents
+    documents = frappe.db.get_all(
+        "Document Table",
+        filters={"parenttype": "Website Item", "parent": website_item.name},
+        fields=["document", "description", "heading"],
+        order_by="idx asc",
+    )
+
+    for item in documents:
+        item.document = frappe.utils.get_url(item.document)
+
     return {
         "success": True,
         "data": {
@@ -130,5 +141,6 @@ def get_detail(route=None, item_code=None):
             "has_variants": item.has_variants,
             "variants": variants,
             "moq": item.custom_sales_moq,
+            "documents": documents,
         },
     }
