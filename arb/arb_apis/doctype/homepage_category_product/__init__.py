@@ -8,7 +8,7 @@ def get_homepage_products():
     category_map = defaultdict(dict)
 
     for row in homepage.category_wise_product:
-        # Fetch Website Item
+        # Fetch Website Item (including route)
         website_item = frappe.db.get_value(
             "Website Item",
             row.website_item,
@@ -16,6 +16,7 @@ def get_homepage_products():
                 "name",
                 "item_code",
                 "web_item_name",
+                "route",
                 "website_image",
                 "stock_uom",
                 "web_long_description",
@@ -26,8 +27,10 @@ def get_homepage_products():
         if not website_item:
             continue
 
-        # Fetch Item image from Item doctype
-        item_image = frappe.db.get_value("Item", website_item.item_code, "image")
+        # Fetch Item image fallback
+        item_image = (
+            frappe.db.get_value("Item", website_item.item_code, "image")
+        )
 
         # Fetch selling price
         price = (
@@ -45,7 +48,7 @@ def get_homepage_products():
         if category not in category_map:
             category_map[category] = {
                 "name": category,
-                "image": website_item.website_image,  # Category image
+                "image": website_item.website_image,
                 "products": [],
             }
 
@@ -53,11 +56,12 @@ def get_homepage_products():
             {
                 "item_code": website_item.item_code,
                 "name": website_item.web_item_name,
-                "product_image": item_image,  # Item image
+                "route": website_item.route,
+                "product_image": item_image,
                 "item_group": category,
                 "price": float(price),
                 "uom": website_item.stock_uom or "Nos",
-                "description": website_item.web_long_description or "",
+                "description": website_item.web_long_description,
             }
         )
 
