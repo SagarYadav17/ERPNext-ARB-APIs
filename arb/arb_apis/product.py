@@ -115,15 +115,21 @@ def get_detail(route=None, item_code=None):
             )
 
     # Documents
-    documents = frappe.db.get_all(
+    documents_query = frappe.db.get_all(
         "Document Table",
         filters={"parenttype": "Website Item", "parent": website_item.name},
         fields=["document", "description", "heading"],
         order_by="idx asc",
     )
 
-    for item in documents:
-        item.document = frappe.utils.get_url(item.document)
+    documents = [
+        {
+            "document": frappe.utils.get_url(item.document),
+            "description": item.description,
+            "heading": item.heading,
+        }
+        for item in documents_query
+    ]
 
     return {
         "success": True,
