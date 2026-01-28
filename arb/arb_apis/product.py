@@ -44,11 +44,7 @@ def get_detail(route=None, item_code=None):
     ]
 
     # Main product image fallback
-    product_image = (
-        website_item.website_image
-        or item.image
-        or ""
-    )
+    product_image=(frappe.db.get_value("Item", website_item.item_code, "image") or "")
 
     variants = []
 
