@@ -20,6 +20,7 @@ def get_homepage_data():
                 "name",
                 "item_code",
                 "web_item_name",
+                "route",
                 "website_image",
                 "stock_uom",
                 "web_long_description",
@@ -29,6 +30,10 @@ def get_homepage_data():
 
         if not website_item:
             continue
+        
+        product_image=(
+            frappe.db.get_value("Item", website_item.item_code, "image")
+        )
 
         price = (
             frappe.db.get_value(
@@ -48,7 +53,9 @@ def get_homepage_data():
             {
                 "item_code": website_item.item_code,
                 "name": website_item.web_item_name,
+                "route": website_item.route,
                 "image": website_item.website_image,
+                "product_image": product_image,
                 "item_group": product_group,
                 "price": float(price),
                 "uom": website_item.stock_uom or "Nos",
